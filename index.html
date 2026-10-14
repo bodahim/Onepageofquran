@@ -1,0 +1,853 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>صفحة واحدة من القرآن كل يوم</title>
+<meta name="description" content="مصحف المدينة النبوية (طبعة مجمع الملك فهد) مع تذكير يومي يتابع وردك صفحة بصفحة">
+<meta name="theme-color" content="#fff9e6">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="صفحة كل يوم">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Amiri+Quran&family=IBM+Plex+Sans+Arabic:wght@400;600&display=swap" rel="stylesheet">
+<script src="config.js"></script>
+<script src="data.js"></script>
+<style>
+/* ألوان مأخوذة من صفحة المصحف المرجعية: ورق كريمي، خط أسود، زخارف بنية */
+:root{
+  --paper:#fff9e6; --ink:#000000; --brown:#8a4400; --marker:#84633a;
+  --pill:#f6ead4; --pillLine:#c8b394; --pillInk:#72502b;
+  --muted:#8a7a60; --surface:#fffdf5; --line:#ecdfc3; --scrim:rgba(40,25,5,.35);
+  --fs:20px; --lh:1.86;
+  color-scheme: light;
+}
+:root[data-theme="dark"]{
+  --paper:#16130d; --ink:#f3e9d2; --brown:#d99a55; --marker:#c9a46c;
+  --pill:#2a2318; --pillLine:#5a4a33; --pillInk:#e6cc9e;
+  --muted:#a8977a; --surface:#211c14; --line:#3a3122; --scrim:rgba(0,0,0,.55);
+  color-scheme: dark;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{background:var(--paper);color:var(--ink);font-family:"IBM Plex Sans Arabic",system-ui,sans-serif;
+  display:flex;flex-direction:column;overflow:hidden;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible,input:focus-visible{outline:2px solid var(--brown);outline-offset:2px}
+
+/* الشريط العلوي — مثل الصفحة المرجعية */
+.top{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) 4px max(14px,env(safe-area-inset-left))}
+.top .side{flex:1;display:flex;align-items:center;gap:8px}
+.top .side.l{justify-content:flex-end}
+.pill{border:1.5px solid var(--pillLine);background:var(--pill);color:var(--pillInk);border-radius:999px;
+  padding:4px 14px;font-size:15px;line-height:1.5;white-space:nowrap}
+.pill.surah{font-family:Amiri,serif;font-weight:700;font-size:17px;padding:2px 16px}
+.icon{width:36px;height:36px;border:0;background:transparent;display:grid;place-items:center;border-radius:10px;position:relative}
+.icon svg{width:22px;height:22px;stroke:var(--brown);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.icon .grid{fill:var(--brown);stroke:none}
+.dot{position:absolute;top:5px;left:6px;width:8px;height:8px;border-radius:50%;background:#c0392b}
+
+/* الصفحة */
+.stagewrap{flex:1;min-height:0;position:relative;display:flex}
+#stage{flex:1;min-width:0;display:flex;padding:4px 10px;overflow:auto;touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch}
+.page{position:relative;margin:auto;transition:opacity .18s;transform-origin:center center}
+.page.pinching{transition:none}
+/* أزرار التكبير والتصغير */
+.zoombar{position:absolute;bottom:8px;left:max(10px,env(safe-area-inset-left));display:flex;align-items:center;gap:2px;
+  background:var(--pill);border:1.5px solid var(--pillLine);border-radius:999px;padding:2px;opacity:.92;z-index:5}
+.zoombar button{border:0;background:transparent;color:var(--pillInk);width:34px;height:34px;border-radius:50%;font-size:20px;line-height:1;display:grid;place-items:center}
+.zoombar button:disabled{opacity:.3}
+.zoombar .zv{width:auto;min-width:46px;padding:0 6px;font-size:13px;font-variant-numeric:tabular-nums;border-radius:999px}
+.page.fade{opacity:.3}
+.lines{margin:0 auto}
+.line{display:flex;justify-content:center;align-items:center;height:calc(var(--fs) * var(--lh));white-space:nowrap;
+  font-size:var(--fs);color:var(--ink);direction:rtl}
+.line.justify{justify-content:space-between}
+.line.measure{width:max-content!important;justify-content:center!important}
+.line span{display:inline-block;line-height:1}
+.line span.ay{color:var(--marker)}
+.line.head{padding:0 1%}
+.head .frame{flex:1;height:80%;display:flex;align-items:center;justify-content:center;border:1.5px solid var(--marker);
+  border-radius:8px;position:relative;font-family:Amiri,serif;font-weight:700;font-size:.8em;color:var(--brown);background:var(--pill)}
+.head .frame::before,.head .frame::after{content:"";position:absolute;top:50%;width:14%;height:0;border-top:1.5px solid var(--marker)}
+.head .frame::before{right:4%}.head .frame::after{left:4%}
+.line.bsml{font-family:"Amiri Quran",serif;font-size:calc(var(--fs) * .92)}
+.state{color:var(--muted);text-align:center;padding:40px 20px;line-height:1.8}
+
+/* شريط الورد والتنقل */
+.wird{display:flex;gap:8px;justify-content:center;padding:4px 14px 0;min-height:44px;flex-wrap:wrap}
+.btn{border:0;border-radius:14px;padding:10px 16px;font-weight:600;font-size:15px}
+.btn.pri{background:var(--brown);color:var(--paper)}
+.btn.sec{background:var(--pill);border:1.5px solid var(--pillLine);color:var(--pillInk)}
+.btn.ghost{background:transparent;color:var(--muted);font-weight:400;font-size:14px}
+.btn.google{background:var(--surface);border:1.5px solid var(--pillLine);color:var(--ink);display:flex;align-items:center;justify-content:center;gap:8px}
+.btn.wide{width:100%}
+.btn:disabled{opacity:.5}
+.bottom{display:flex;align-items:center;gap:10px;padding:8px max(14px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
+.nav{height:40px;padding:0 14px;font-size:14px;display:flex;align-items:center}
+.nav:disabled{opacity:.35}
+.pg{flex:1;display:flex;justify-content:center}
+.pg .pill{font-variant-numeric:tabular-nums;font-size:16px}
+
+/* النوافذ السفلية */
+.scrim{position:fixed;inset:0;background:var(--scrim);opacity:0;pointer-events:none;transition:.2s;z-index:20}
+.scrim.on{opacity:1;pointer-events:auto}
+.sheet{position:fixed;inset:auto 0 0 0;max-height:88vh;background:var(--surface);border-radius:22px 22px 0 0;z-index:21;
+  transform:translateY(105%);transition:transform .25s ease;display:flex;flex-direction:column;
+  padding:8px max(16px,env(safe-area-inset-right)) calc(16px + env(safe-area-inset-bottom)) max(16px,env(safe-area-inset-left));max-width:640px;margin:0 auto;
+  border-top:1.5px solid var(--pillLine)}
+.sheet.on{transform:none}
+.grab{width:42px;height:5px;border-radius:9px;background:var(--pillLine);margin:4px auto 10px;border:0;padding:0}
+.sheet h2{margin:0 0 10px;font-size:18px;color:var(--pillInk)}
+.sc{overflow:auto;min-height:0}
+.tabs{display:flex;background:var(--pill);border-radius:12px;padding:4px;margin-bottom:10px}
+.tabs button{flex:1;border:0;background:transparent;padding:8px;border-radius:9px;font-size:14px;color:var(--pillInk)}
+.tabs button.on{background:var(--surface);font-weight:600}
+.field{width:100%;padding:11px 12px;border-radius:12px;border:1.5px solid var(--pillLine);background:var(--paper);color:var(--ink);font:inherit;font-size:16px;user-select:text;-webkit-user-select:text}
+.row{display:flex;gap:8px;align-items:center}
+.list{list-style:none;margin:8px 0 0;padding:0}
+.list li{display:flex;align-items:center;gap:12px;padding:11px 4px;border-bottom:1px solid var(--line)}
+.list .n{width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;border-radius:50%;border:1.5px solid var(--pillLine);font-size:13px;color:var(--pillInk)}
+.list .nm{flex:1;font-family:Amiri,serif;font-size:19px}
+.list .p{color:var(--muted);font-size:13px}
+.list li.cur .n{background:var(--brown);border-color:var(--brown);color:var(--paper)}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:16px;padding:14px;margin-bottom:12px}
+.bar{height:8px;border-radius:9px;background:var(--pill);overflow:hidden;margin:8px 0}
+.bar i{display:block;height:100%;background:var(--brown);border-radius:9px}
+.stats{display:flex;gap:8px;text-align:center}
+.stats div{flex:1;background:var(--pill);border-radius:12px;padding:8px 4px}
+.stats b{display:block;font-size:20px;color:var(--pillInk)}
+.stats small{color:var(--muted);font-size:12px}
+.note{font-size:13px;color:var(--muted);line-height:1.7}
+.ok{color:#2e7d4f;font-weight:600}
+:root[data-theme="dark"] .ok{color:#7fcf9f}
+.err{color:#b3261e;font-size:13px;min-height:1em}
+.lbl{font-size:13px;color:var(--muted);margin:2px 0 6px}
+.stack>*+*{margin-top:8px}
+.link{background:none;border:0;color:var(--brown);font-size:13px;padding:4px 0;text-decoration:underline}
+.or{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px}
+.or::before,.or::after{content:"";flex:1;border-top:1px solid var(--line)}
+.hero{text-align:center;padding:6px 0 4px}
+.hero .logo{width:76px;height:76px;border-radius:20px}
+.hero h1{font-family:Amiri,serif;margin:8px 0 2px;font-size:26px;color:var(--brown);text-wrap:balance}
+.toast{position:fixed;left:50%;bottom:120px;transform:translateX(-50%) translateY(20px);background:var(--pillInk);color:var(--paper);
+  padding:10px 16px;border-radius:12px;font-size:14px;opacity:0;transition:.25s;z-index:40;max-width:90vw;text-align:center;pointer-events:none}
+.toast.on{opacity:1;transform:translateX(-50%)}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="side">
+    <button class="pill surah" id="tSurah" aria-label="فهرس السور">—</button>
+  </div>
+  <button class="icon" id="bIndex" aria-label="الفهرس"><svg viewBox="0 0 24 24"><rect class="grid" x="4" y="4" width="7" height="7" rx="2"/><rect class="grid" x="13" y="4" width="7" height="7" rx="2"/><rect class="grid" x="4" y="13" width="7" height="7" rx="2"/><rect class="grid" x="13" y="13" width="7" height="7" rx="2"/></svg></button>
+  <div class="side l">
+    <button class="pill" id="tJuz" aria-label="فهرس الأجزاء">الجزء ١</button>
+    <button class="icon" id="bRem" aria-label="وردي وحسابي"><svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg><span class="dot" id="remDot" hidden></span></button>
+  </div>
+</header>
+
+<div class="stagewrap">
+  <main id="stage"><div class="state">جارٍ التحميل…</div></main>
+  <div class="zoombar" role="group" aria-label="حجم الصفحة">
+    <button id="zOut" aria-label="تصغير الصفحة">−</button>
+    <button id="zVal" class="zv" aria-label="إعادة الحجم الأصلي">١٠٠٪</button>
+    <button id="zIn" aria-label="تكبير الصفحة">+</button>
+  </div>
+</div>
+
+<div class="wird" id="wirdBar"></div>
+
+<footer class="bottom">
+  <button class="pill nav" id="bPrev" aria-label="الصفحة السابقة">→ السابقة</button>
+  <div class="pg"><span class="pill" id="pg">١</span></div>
+  <button class="pill nav" id="bNext" aria-label="الصفحة التالية">التالية ←</button>
+</footer>
+
+<div class="scrim" id="scrim"></div>
+
+<!-- الفهرس -->
+<section class="sheet" id="shIndex" aria-label="الفهرس">
+  <button class="grab" aria-label="إغلاق"></button>
+  <div class="tabs"><button class="on" data-tab="s">السور</button><button data-tab="j">الأجزاء</button></div>
+  <div class="row" style="margin-bottom:6px">
+    <input class="field" id="qSearch" placeholder="ابحث عن سورة…" autocomplete="off">
+    <input class="field" id="qPage" type="number" inputmode="numeric" min="1" max="604" placeholder="صفحة" style="width:96px">
+  </div>
+  <div class="sc"><ul class="list" id="idxList"></ul></div>
+</section>
+
+<!-- الورد والحساب والتذكير -->
+<section class="sheet" id="shRem" aria-label="وردي وحسابي">
+  <button class="grab" aria-label="إغلاق"></button>
+  <div class="sc" id="remBody"></div>
+</section>
+
+<!-- الترحيب -->
+<section class="sheet" id="shWelcome" aria-label="مرحبًا">
+  <button class="grab" aria-label="إغلاق"></button>
+  <div class="sc stack">
+    <div class="hero">
+      <img class="logo" src="icons/icon-192.png" alt="">
+      <h1 id="wName"></h1>
+      <div class="note" id="wTag"></div>
+    </div>
+    <div class="card note">اقرأ صفحة واحدة على الأقل كل يوم. عندما تنتهي من صفحة اضغط «قرأت هذه الصفحة»، وسيذكّرك التطبيق في الموعد الذي تختاره بالصفحة التالية مباشرة.</div>
+    <button class="btn pri wide" id="wStart">ابدأ من سورة الفاتحة</button>
+    <button class="btn sec wide" id="wPick">اختر صفحة البداية</button>
+    <button class="btn ghost wide" id="wLogin" hidden>لديك حساب؟ سجّل الدخول لاسترجاع سجلك</button>
+  </div>
+</section>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(() => {
+"use strict";
+const C = self.APP_CONFIG || {}, Q = self.QDATA;
+const API = "https://api.quran.com/api/v4";
+const FONT = "https://static.qurancdn.com/fonts/quran/hafs/v2/woff2";
+const FB_V = "10.12.2";
+const BASMALA = "بِسۡمِ ٱللَّهِ ٱلرَّحۡمَٰنِ ٱلرَّحِيمِ";
+const $ = s => document.querySelector(s);
+const toAr = n => String(n).replace(/\d/g, d => "٠١٢٣٤٥٦٧٨٩"[d]);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ---------- الإعدادات العامة ---------- */
+document.title = C.appName || document.title;
+const root = document.documentElement;
+const CV = C.colors || {};
+for (const [k, v] of Object.entries(CV)) if (v) root.style.setProperty("--" + k, v);
+$("#wName").textContent = C.appName || "";
+$("#wTag").textContent = C.tagline || "";
+try { const th = localStorage.getItem("wird.theme"); if (th === "dark") root.dataset.theme = "dark"; } catch (e) {}
+const setThemeColor = () => { document.querySelector('meta[name="theme-color"]').content = getComputedStyle(root).getPropertyValue("--paper").trim(); };
+setThemeColor();
+
+/* ---------- الحالة المحفوظة ---------- */
+const KEY = "wird.v1";
+const today = () => new Date().toLocaleDateString("en-CA");
+const yesterday = () => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toLocaleDateString("en-CA"); };
+let S = { current: 1, wird: 1, done: 0, khatmat: 0, streak: 0, lastReadDay: "", updatedAt: 0,
+          time: C.defaultTime || "20:00", remote: false, member: false, email: "", seen: false };
+try { Object.assign(S, JSON.parse(localStorage.getItem(KEY) || "{}")); } catch (e) {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+let DEV = "";
+try { DEV = localStorage.getItem("wird.dev") || ""; if (!DEV) { DEV = "d" + Math.random().toString(36).slice(2, 12); localStorage.setItem("wird.dev", DEV); } } catch (e) { DEV = "d" + Date.now(); }
+
+let toastT;
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("on"); clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove("on"), 3000); }
+const clamp = p => Math.min(Q.TOTAL, Math.max(1, p | 0));
+
+/* ---------- تحميل بيانات الصفحة والخط ---------- */
+const dataCache = new Map(), fontCache = new Map();
+function getPage(p) {
+  if (dataCache.has(p)) return dataCache.get(p);
+  const pr = (async () => {
+    let verses = [], pageNo = 1;
+    for (;;) {
+      const r = await fetch(`${API}/verses/by_page/${p}?words=true&word_fields=code_v2,line_number&per_page=50&page=${pageNo}`);
+      if (!r.ok) throw new Error("http " + r.status);
+      const j = await r.json();
+      verses = verses.concat(j.verses || []);
+      if (!j.pagination || !j.pagination.next_page) break;
+      pageNo = j.pagination.next_page;
+    }
+    return verses;
+  })();
+  dataCache.set(p, pr); pr.catch(() => dataCache.delete(p));
+  return pr;
+}
+function getFont(p) {
+  if (fontCache.has(p)) return fontCache.get(p);
+  const f = new FontFace("qcf" + p, `url(${FONT}/p${p}.woff2) format("woff2")`, { display: "block" });
+  const pr = f.load().then(ff => { document.fonts.add(ff); return true; });
+  fontCache.set(p, pr); pr.catch(() => fontCache.delete(p));
+  return pr;
+}
+const preload = p => { if (p >= 1 && p <= Q.TOTAL) { getPage(p).catch(() => {}); getFont(p).catch(() => {}); } };
+
+/* ---------- بناء أسطر الصفحة (15 سطرًا) ---------- */
+function buildLines(verses, p) {
+  const L = {}, starts = [];
+  let lastCh = 1, lastLine = 0;
+  for (const v of verses) {
+    const ch = +v.verse_key.split(":")[0];
+    lastCh = ch;
+    if (v.verse_number === 1 && v.words.length) starts.push({ ch, line: v.words[0].line_number });
+    for (const w of v.words) {
+      (L[w.line_number] ||= { t: "w", g: [] }).g.push({ c: w.code_v2, end: w.char_type_name === "end" });
+      if (w.line_number > lastLine) lastLine = w.line_number;
+    }
+  }
+  for (const { ch, line } of starts) {
+    if (ch === 1 || ch === 9) { if (line - 1 >= 1 && !L[line - 1]) L[line - 1] = { t: "h", ch }; }
+    else {
+      if (line - 1 >= 1 && !L[line - 1]) L[line - 1] = { t: "b" };
+      if (line - 2 >= 1 && !L[line - 2]) L[line - 2] = { t: "h", ch };
+    }
+  }
+  const max = p <= 2 ? lastLine : 15;
+  if (p > 2 && lastLine < 15 && lastCh < 114) {
+    const nx = lastCh + 1;
+    L[lastLine + 1] = { t: "h", ch: nx };
+    if (lastLine + 2 <= 15 && nx !== 9) L[lastLine + 2] = { t: "b" };
+  }
+  const out = [];
+  for (let i = 1; i <= max; i++) out.push(L[i] || { t: "e" });
+  return out;
+}
+
+/* ---------- العرض ---------- */
+let renderToken = 0;
+async function render(p) {
+  const tok = ++renderToken;
+  updateChrome(p);
+  const stage = $("#stage");
+  const old = stage.querySelector(".page");
+  if (old) old.classList.add("fade");
+  else stage.innerHTML = '<div class="state">جارٍ تحميل الصفحة…</div>';
+  try {
+    const [verses] = await Promise.all([getPage(p), getFont(p)]);
+    if (tok !== renderToken) return;
+    const lines = buildLines(verses, p);
+    const page = document.createElement("div");
+    page.className = "page" + (p <= 2 ? " opening" : "");
+    const box = document.createElement("div"); box.className = "lines";
+    for (const ln of lines) {
+      const d = document.createElement("div");
+      d.className = "line";
+      if (ln.t === "w") {
+        d.classList.add("w"); d.style.fontFamily = `qcf${p}, serif`;
+        for (const g of ln.g) { const s = document.createElement("span"); s.textContent = g.c; if (g.end) s.className = "ay"; d.appendChild(s); }
+      } else if (ln.t === "h") {
+        d.classList.add("head");
+        d.innerHTML = `<div class="frame">سورة ${Q.names[ln.ch - 1]}</div>`;
+      } else if (ln.t === "b") { d.classList.add("bsml"); d.textContent = BASMALA; }
+      box.appendChild(d);
+    }
+    page.appendChild(box);
+    stage.innerHTML = ""; stage.appendChild(page);
+    fit();
+    stage.scrollTop = 0; stage.scrollLeft = 0; // ابدأ من أعلى يمين الصفحة
+    preload(p + 1); preload(p - 1);
+  } catch (e) {
+    if (tok !== renderToken) return;
+    stage.innerHTML = `<div class="state">تعذّر تحميل الصفحة ${toAr(p)}.<br>تحقق من اتصالك بالإنترنت.<br><button class="btn sec" id="retry" style="margin-top:10px">إعادة المحاولة</button></div>`;
+    $("#retry").onclick = () => render(p);
+  }
+}
+
+function fit() {
+  const page = $("#stage .page"); if (!page) return;
+  const box = page.querySelector(".lines");
+  const opening = page.classList.contains("opening");
+  const all = [...box.children], words = all.filter(l => l.classList.contains("w"));
+  const BASE = 40;
+  page.style.setProperty("--fs", BASE + "px");
+  box.style.width = "auto"; box.style.paddingBlock = "0";
+  words.forEach(l => { l.classList.remove("justify"); l.classList.add("measure"); });
+  const nat = words.map(l => l.offsetWidth);
+  words.forEach(l => l.classList.remove("measure"));
+  const maxNat = Math.max(...nat, 1);
+  const stage = $("#stage");
+  const availW = stage.clientWidth - 20 - 4;   // المقاس الأصلي (100٪) يملأ الشاشة، ثم يُضرب في نسبة التكبير
+  const availH = stage.clientHeight - 8 - 6;
+  const lh = parseFloat(getComputedStyle(root).getPropertyValue("--lh")) || 1.86;
+  let fs = opening
+    ? Math.min(BASE * availW * 0.8 / maxNat, availH / ((all.length + 2) * lh))
+    : Math.min(BASE * availW / maxNat, availH / (15 * lh));
+  fs = Math.max(fs, 13) * (S.zoom || 1);
+  page.style.setProperty("--fs", fs.toFixed(2) + "px");
+  box.style.width = opening ? (availW * 0.9) + "px" : (maxNat * fs / BASE + 2) + "px";
+  if (opening) box.style.paddingBlock = `${fs * lh * 0.9}px`;
+  else words.forEach((l, i) => { if (nat[i] > maxNat * 0.8) l.classList.add("justify"); });
+}
+let rz; addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(fit, 120); });
+
+function updateChrome(p) {
+  $("#tSurah").textContent = Q.names[Q.surahOfPage(p) - 1];
+  $("#tJuz").textContent = "الجزء " + toAr(Q.juzOfPage(p));
+  $("#pg").textContent = toAr(p);
+  $("#bPrev").disabled = p <= 1; $("#bNext").disabled = p >= Q.TOTAL;
+  renderWirdBar();
+}
+
+/* ---------- التنقل ---------- */
+function go(p, viaNext) {
+  p = clamp(p);
+  if (viaNext && S.current === S.wird && p === S.current + 1) markDone(S.current, true);
+  S.current = p; save();
+  try { history.replaceState(null, "", "?page=" + p); } catch (e) {}
+  render(p);
+}
+$("#bNext").onclick = () => go(S.current + 1, true);
+$("#bPrev").onclick = () => go(S.current - 1);
+addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "ArrowLeft") go(S.current + 1, true);
+  if (e.key === "ArrowRight") go(S.current - 1);
+});
+/* ---------- التكبير والتصغير ---------- */
+const ZMIN = 0.6, ZMAX = 3, ZSTEP = 0.2;
+if (!S.zoom) S.zoom = 1;
+const zclamp = z => Math.min(ZMAX, Math.max(ZMIN, Math.round(z * 100) / 100));
+function updateZoomUI() {
+  $("#zVal").textContent = toAr(Math.round(S.zoom * 100)) + "٪";
+  $("#zOut").disabled = S.zoom <= ZMIN; $("#zIn").disabled = S.zoom >= ZMAX;
+}
+/* يغيّر الحجم مع إبقاء النقطة (fx,fy) من الشاشة في مكانها */
+function setZoom(z, fx, fy) {
+  z = zclamp(z);
+  const st = $("#stage"), r = st.getBoundingClientRect();
+  if (fx == null) { fx = r.left + st.clientWidth / 2; fy = r.top + st.clientHeight / 2; }
+  const rx = (st.scrollLeft + fx - r.left) / Math.max(st.scrollWidth, 1);
+  const ry = (st.scrollTop + fy - r.top) / Math.max(st.scrollHeight, 1);
+  S.zoom = z; save(); fit(); updateZoomUI();
+  st.scrollLeft = rx * st.scrollWidth - (fx - r.left);
+  st.scrollTop = ry * st.scrollHeight - (fy - r.top);
+}
+$("#zIn").onclick = () => setZoom(S.zoom + ZSTEP);
+$("#zOut").onclick = () => setZoom(S.zoom - ZSTEP);
+$("#zVal").onclick = () => setZoom(1);
+updateZoomUI();
+addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT") return;
+  if (e.key === "+" || e.key === "=") setZoom(S.zoom + ZSTEP);
+  if (e.key === "-") setZoom(S.zoom - ZSTEP);
+  if (e.key === "0") setZoom(1);
+});
+// الحاسوب: Ctrl + عجلة الفأرة (أو قرص اللمس)
+$("#stage").addEventListener("wheel", e => {
+  if (!e.ctrlKey) return;
+  e.preventDefault(); setZoom(S.zoom * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+}, { passive: false });
+// iOS: منع تكبير الصفحة كاملة، فنكبّر المصحف فقط
+["gesturestart", "gesturechange"].forEach(t => document.addEventListener(t, e => e.preventDefault(), { passive: false }));
+
+/* اللمس: إصبعان = تكبير/تصغير، نقرتان = تبديل الحجم، سحب أفقي = تقليب الصفحة */
+let sx = 0, sy = 0, pinch = null, multi = false, lastTap = 0;
+const dist = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+const stageEl = $("#stage");
+stageEl.addEventListener("touchstart", e => {
+  if (e.touches.length === 2) {
+    const [a, b] = e.touches, page = $("#stage .page");
+    multi = true;
+    pinch = { d0: dist(a, b), z0: S.zoom, z: S.zoom, fx: (a.clientX + b.clientX) / 2, fy: (a.clientY + b.clientY) / 2, page };
+    if (page) {
+      const pr = page.getBoundingClientRect();
+      page.classList.add("pinching");
+      page.style.transformOrigin = `${pinch.fx - pr.left}px ${pinch.fy - pr.top}px`;
+    }
+  } else if (e.touches.length === 1) { sx = e.touches[0].clientX; sy = e.touches[0].clientY; multi = false; }
+}, { passive: true });
+stageEl.addEventListener("touchmove", e => {
+  if (!pinch || e.touches.length !== 2) return;
+  e.preventDefault();
+  pinch.z = zclamp(pinch.z0 * dist(e.touches[0], e.touches[1]) / pinch.d0);
+  if (pinch.page) pinch.page.style.transform = `scale(${pinch.z / pinch.z0})`;
+  $("#zVal").textContent = toAr(Math.round(pinch.z * 100)) + "٪";
+}, { passive: false });
+stageEl.addEventListener("touchend", e => {
+  if (pinch) {
+    if (e.touches.length < 2) {
+      const p = pinch; pinch = null;
+      if (p.page) { p.page.style.transform = ""; p.page.style.transformOrigin = ""; p.page.classList.remove("pinching"); }
+      setZoom(p.z, p.fx, p.fy);
+    }
+    return;
+  }
+  if (multi || e.touches.length) return;
+  const t = e.changedTouches[0], dx = t.clientX - sx, dy = t.clientY - sy;
+  // نقرتان سريعتان: تكبير إلى ١٦٠٪ أو العودة للحجم الأصلي
+  if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+    const now = Date.now();
+    if (now - lastTap < 300) { lastTap = 0; setZoom(S.zoom > 1.05 ? 1 : 1.6, t.clientX, t.clientY); }
+    else lastTap = now;
+    return;
+  }
+  // التقليب بالسحب فقط عندما تكون الصفحة غير مكبّرة (عند التكبير السحب يحرّك الصفحة)
+  const st = stageEl, scrollableX = st.scrollWidth > st.clientWidth + 2;
+  if (!scrollableX && Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) dx > 0 ? go(S.current + 1, true) : go(S.current - 1);
+}, { passive: true });
+
+/* ---------- الورد ---------- */
+function touch() { S.updatedAt = Date.now(); save(); }
+function markDone(p, silent) {
+  const t = today();
+  if (S.lastReadDay !== t) S.streak = (S.lastReadDay === yesterday() ? S.streak : 0) + 1;
+  S.lastReadDay = t; S.done++;
+  if (p >= Q.TOTAL) { S.khatmat++; S.wird = 1; toast("مبارك! أتممت ختمة كاملة 🎉 يبدأ وردك من جديد"); }
+  else { S.wird = p + 1; if (!silent) toast(`أحسنت 🌿 وردك القادم: صفحة ${toAr(S.wird)}`); }
+  touch(); renderWirdBar(); syncRemote();
+}
+function renderWirdBar() {
+  const bar = $("#wirdBar"); bar.innerHTML = "";
+  const b = (cls, txt, fn) => { const x = document.createElement("button"); x.className = "btn " + cls; x.textContent = txt; x.onclick = fn; bar.appendChild(x); };
+  if (S.current === S.wird) {
+    b("pri", "✓ قرأت هذه الصفحة", () => { markDone(S.current); if (S.current < Q.TOTAL) go(S.current + 1); });
+  } else {
+    b("sec", `اذهب إلى وردك (ص ${toAr(S.wird)})`, () => go(S.wird));
+    b("ghost", "اجعل وردي من هنا", () => { S.wird = S.current; touch(); renderWirdBar(); syncRemote(); toast(`أصبح وردك يبدأ من صفحة ${toAr(S.wird)}`); });
+  }
+  $("#remDot").hidden = S.lastReadDay === today();
+}
+
+/* ---------- النوافذ ---------- */
+let openSheet = null;
+function show(id) { hide(); openSheet = $(id); openSheet.classList.add("on"); $("#scrim").classList.add("on"); }
+function hide() { if (openSheet) openSheet.classList.remove("on"); $("#scrim").classList.remove("on"); openSheet = null; }
+$("#scrim").onclick = hide;
+document.querySelectorAll(".grab").forEach(g => g.onclick = hide);
+
+/* الفهرس */
+let tab = "s";
+function setTab(t) {
+  tab = t; document.querySelectorAll(".tabs button").forEach(x => x.classList.toggle("on", x.dataset.tab === t));
+  $("#qSearch").hidden = t !== "s"; renderIndex();
+}
+function renderIndex() {
+  const q = $("#qSearch").value.trim(), ul = $("#idxList"), cs = Q.surahOfPage(S.current), cj = Q.juzOfPage(S.current);
+  const items = tab === "s"
+    ? Q.names.map((n, i) => ({ n: i + 1, name: n, p: Q.start[i], cur: i + 1 === cs })).filter(x => !q || x.name.includes(q))
+    : Q.juz.map((p, i) => ({ n: i + 1, name: "الجزء " + toAr(i + 1), p, cur: i + 1 === cj }));
+  ul.innerHTML = items.map(x => `<li data-p="${x.p}" class="${x.cur ? "cur" : ""}"><span class="n">${toAr(x.n)}</span><span class="nm">${x.name}</span><span class="p">ص ${toAr(x.p)}</span></li>`).join("");
+}
+function openIndex(t) {
+  setTab(t); show("#shIndex");
+  setTimeout(() => { const c = $("#idxList .cur"); if (c) c.scrollIntoView({ block: "center" }); }, 260);
+}
+$("#idxList").onclick = e => { const li = e.target.closest("li"); if (li) { hide(); go(+li.dataset.p); } };
+document.querySelectorAll(".tabs button").forEach(b => b.onclick = () => setTab(b.dataset.tab));
+$("#qSearch").oninput = renderIndex;
+const jump = e => { if (e.target.value) { hide(); go(+e.target.value); e.target.value = ""; } };
+$("#qPage").onkeydown = e => { if (e.key === "Enter") jump(e); };
+$("#qPage").onchange = jump;
+$("#bIndex").onclick = () => openIndex("s");
+$("#tSurah").onclick = () => openIndex("s");
+$("#tJuz").onclick = () => openIndex("j");
+
+/* ======================================================
+   Firebase: الحساب (حفظ السجل) + الإشعارات — مجاني
+   ====================================================== */
+let FB = null;
+async function fbLoad() {
+  if (FB) return FB;
+  if (!C.firebase) throw Object.assign(new Error("no-config"), { code: "no-config" });
+  const base = `https://www.gstatic.com/firebasejs/${FB_V}`;
+  const [app, auth, fs, msg] = await Promise.all([
+    import(`${base}/firebase-app.js`), import(`${base}/firebase-auth.js`),
+    import(`${base}/firebase-firestore.js`), import(`${base}/firebase-messaging.js`)]);
+  const a = app.initializeApp(C.firebase);
+  const au = auth.getAuth(a); au.languageCode = "ar";
+  await au.authStateReady();
+  FB = { a, au, auth, fs, msg, db: fs.getFirestore(a) };
+  return FB;
+}
+async function ensureUser() { const F = await fbLoad(); if (!F.au.currentUser) await F.auth.signInAnonymously(F.au); return F; }
+const uref = F => F.fs.doc(F.db, "users", F.au.currentUser.uid);
+const tz = () => Intl.DateTimeFormat().resolvedOptions().timeZone;
+const FAR = new Date("2999-01-01T00:00:00Z");
+function nextDue() {
+  const [h, m] = S.time.split(":").map(Number);
+  const d = new Date(); d.setHours(h, m, 0, 0);
+  if (d <= new Date()) d.setDate(d.getDate() + 1);
+  return d;
+}
+function progressPayload(F) {
+  return {
+    progress: { wird: S.wird, done: S.done, khatmat: S.khatmat, streak: S.streak, lastReadDay: S.lastReadDay || "", current: S.current, updatedAt: S.updatedAt || 0 },
+    nextPage: S.wird, lastReadDay: S.lastReadDay || "", updatedAt: F.fs.serverTimestamp()
+  };
+}
+async function syncRemote(timeChanged) {
+  if (!C.firebase || !(S.remote || S.member)) return;
+  try {
+    const F = await ensureUser();
+    const data = progressPayload(F);
+    if (timeChanged) Object.assign(data, { time: S.time, tz: tz(), nextDue: F.fs.Timestamp.fromDate(nextDue()) });
+    await F.fs.setDoc(uref(F), data, { merge: true });
+  } catch (e) { console.error("sync", e); }
+}
+
+/* دمج السجل: يُعتمد السجل الأكثر تقدمًا (لا يضيع تقدمك أبدًا) */
+async function pullMerge(silent) {
+  const F = await fbLoad();
+  const snap = await F.fs.getDoc(uref(F));
+  const r = snap.exists() ? snap.data() : null;
+  const rp = r && r.progress;
+  const score = o => (o.khatmat || 0) * 10000 + (o.done || 0) * 10 + ((o.wird || 1) > 1 ? 1 : 0);
+  if (rp && (score(rp) > score(S) || (score(rp) === score(S) && (rp.updatedAt || 0) > (S.updatedAt || 0)))) {
+    Object.assign(S, { wird: rp.wird || 1, done: rp.done || 0, khatmat: rp.khatmat || 0, streak: rp.streak || 0,
+      lastReadDay: rp.lastReadDay || "", current: rp.current || rp.wird || 1, updatedAt: rp.updatedAt || Date.now() });
+    if (r.time) S.time = r.time;
+    save(); go(S.current);
+    toast(`تم استرجاع سجلك: وردك عند صفحة ${toAr(S.wird)}`);
+  } else {
+    if (!S.updatedAt) S.updatedAt = Date.now();
+    save();
+    await F.fs.setDoc(uref(F), { ...progressPayload(F), time: S.time, tz: tz() }, { merge: true });
+    if (!silent) toast("تم حفظ سجلك في حسابك ✓");
+  }
+}
+
+/* الإشعارات */
+async function registerToken() {
+  const F = await ensureUser();
+  if (!(await F.msg.isSupported())) throw Object.assign(new Error("unsupported"), { code: "unsupported" });
+  const reg = await navigator.serviceWorker.ready;
+  const token = await F.msg.getToken(F.msg.getMessaging(F.a), { vapidKey: C.vapidKey, serviceWorkerRegistration: reg });
+  if (!token) throw new Error("no-token");
+  await F.fs.setDoc(uref(F), {
+    ...progressPayload(F), tokens: { [DEV]: token }, enabled: true,
+    time: S.time, tz: tz(), nextDue: F.fs.Timestamp.fromDate(nextDue())
+  }, { merge: true });
+  S.remote = true; save();
+}
+async function detachDevice() {
+  if (!FB || !FB.au.currentUser) return;
+  const F = FB, ref = uref(F);
+  try {
+    await F.fs.updateDoc(ref, { ["tokens." + DEV]: F.fs.deleteField() });
+    const d = (await F.fs.getDoc(ref)).data() || {};
+    if (!d.tokens || !Object.keys(d.tokens).length) await F.fs.updateDoc(ref, { enabled: false, nextDue: F.fs.Timestamp.fromDate(FAR) });
+  } catch (e) { console.warn("detach", e); }
+}
+async function enablePush(btn) {
+  btn.disabled = true; btn.textContent = "جارٍ التفعيل…";
+  try {
+    if (!("Notification" in window) || !("serviceWorker" in navigator)) throw Object.assign(new Error(), { code: "unsupported" });
+    const perm = await Notification.requestPermission();
+    if (perm !== "granted") { toast("لم يتم السماح بالإشعارات من إعدادات المتصفح"); renderRem(); return; }
+    await registerToken();
+    toast("تم تفعيل التذكير اليومي 🔔");
+  } catch (e) {
+    console.error(e);
+    toast(e.code === "unsupported" ? "متصفحك لا يدعم الإشعارات — استخدم تذكير التقويم" : "تعذّر التفعيل، حاول مرة أخرى");
+  }
+  renderRem();
+}
+async function disablePush() { await detachDevice(); S.remote = false; save(); toast("تم إيقاف التذكير على هذا الجهاز"); renderRem(); }
+
+/* الحساب */
+const AUTH_MSG = {
+  "auth/invalid-credential": "البريد أو كلمة المرور غير صحيحة",
+  "auth/wrong-password": "البريد أو كلمة المرور غير صحيحة",
+  "auth/user-not-found": "لا يوجد حساب بهذا البريد، اختر «حساب جديد»",
+  "auth/email-already-in-use": "هذا البريد مسجّل مسبقًا، اختر «دخول»",
+  "auth/weak-password": "كلمة المرور قصيرة، 6 أحرف على الأقل",
+  "auth/invalid-email": "صيغة البريد غير صحيحة",
+  "auth/missing-password": "اكتب كلمة المرور",
+  "auth/too-many-requests": "محاولات كثيرة، انتظر قليلًا ثم حاول",
+  "auth/network-request-failed": "لا يوجد اتصال بالإنترنت",
+  "auth/popup-blocked": "المتصفح منع نافذة Google، جرّب الدخول بالبريد",
+  "auth/unauthorized-domain": "هذا الدومين غير مضاف في إعدادات Firebase",
+  "auth/operation-not-allowed": "طريقة الدخول هذه غير مفعّلة في Firebase",
+  "no-config": "الحسابات غير مفعّلة بعد في هذه النسخة"
+};
+const authErr = e => AUTH_MSG[e && e.code] || "تعذّر الدخول، حاول مرة أخرى";
+async function afterLogin(F) {
+  const u = F.au.currentUser;
+  S.member = true; S.email = u.email || ""; save();
+  await pullMerge();
+  if (S.remote) { try { await registerToken(); } catch (e) { S.remote = false; save(); } }
+}
+async function switchAccount(F, signIn) {
+  const wasRemote = S.remote;
+  if (wasRemote) await detachDevice();
+  try { await signIn(); }
+  catch (e) { if (wasRemote) { try { await registerToken(); } catch (x) {} } throw e; }
+}
+async function loginGoogle() {
+  const F = await fbLoad();
+  const prov = new F.auth.GoogleAuthProvider();
+  const cur = F.au.currentUser;
+  try {
+    if (cur && cur.isAnonymous) await F.auth.linkWithPopup(cur, prov);
+    else await F.auth.signInWithPopup(F.au, prov);
+  } catch (e) {
+    if (e.code === "auth/credential-already-in-use") {
+      const cred = F.auth.GoogleAuthProvider.credentialFromError(e);
+      await switchAccount(F, () => F.auth.signInWithCredential(F.au, cred));
+    } else throw e;
+  }
+  await afterLogin(F);
+}
+async function emailAuth(mode, email, pw) {
+  const F = await fbLoad();
+  const cur = F.au.currentUser;
+  if (mode === "signup") {
+    if (cur && cur.isAnonymous) await F.auth.linkWithCredential(cur, F.auth.EmailAuthProvider.credential(email, pw));
+    else await F.auth.createUserWithEmailAndPassword(F.au, email, pw);
+  } else {
+    await switchAccount(F, () => F.auth.signInWithEmailAndPassword(F.au, email, pw));
+  }
+  await afterLogin(F);
+}
+async function logout() {
+  try { if (S.remote) await detachDevice(); const F = await fbLoad(); await F.auth.signOut(F.au); } catch (e) { console.error(e); }
+  S.member = false; S.remote = false; S.email = ""; save();
+  toast("تم تسجيل الخروج، سجلك باقٍ في حسابك"); renderRem();
+}
+
+/* ---------- لوحة وردي وحسابي ---------- */
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const standalone = matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+let installEvt = null;
+addEventListener("beforeinstallprompt", e => { e.preventDefault(); installEvt = e; });
+const fmtTime = t => { const [h, m] = t.split(":").map(Number); const hh = ((h + 11) % 12) + 1; return `${toAr(hh)}:${toAr(String(m).padStart(2, "0"))} ${h >= 12 ? "م" : "ص"}`; };
+const GOOGLE_SVG = '<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>';
+
+function accountHtml() {
+  if (!C.firebase) return `<div class="card note">حفظ السجل على أكثر من جوال يحتاج تفعيل الحسابات (الخطوة ٣ في دليل النشر). سجلك الآن محفوظ على هذا الجهاز فقط.</div>`;
+  if (S.member) return `<div class="card stack">
+      <div class="ok">✓ سجلك محفوظ في حسابك</div>
+      <div class="note" dir="ltr" style="text-align:right">${esc(S.email || "حساب Google")}</div>
+      <div class="note">افتح التطبيق في أي جوال وسجّل الدخول بنفس الحساب لتكمل من حيث توقفت.</div>
+      <button class="btn ghost wide" id="aOut">تسجيل الخروج</button></div>`;
+  return `<div class="card stack">
+      <div><b>احفظ سجلك</b><div class="note">سجّل الدخول ليبقى وردك وإحصاءاتك محفوظة، وتسترجعها إذا غيّرت جوالك.</div></div>
+      <button class="btn google wide" id="aGoogle">${GOOGLE_SVG}<span>المتابعة بحساب Google</span></button>
+      <div class="or">أو بالبريد</div>
+      <input class="field" id="aEmail" type="email" inputmode="email" autocomplete="email" placeholder="البريد الإلكتروني" dir="ltr">
+      <input class="field" id="aPw" type="password" autocomplete="current-password" placeholder="كلمة المرور (6 أحرف على الأقل)" dir="ltr">
+      <div class="err" id="aErr"></div>
+      <div class="row"><button class="btn pri" style="flex:1" id="aIn">دخول</button><button class="btn sec" style="flex:1" id="aUp">حساب جديد</button></div>
+      <button class="link" id="aReset">نسيت كلمة المرور؟</button></div>`;
+}
+function bindAccount() {
+  const busy = async (btn, fn) => {
+    const err = $("#aErr"); if (err) err.textContent = "";
+    const txt = btn.innerHTML; btn.disabled = true;
+    try { await fn(); renderRem(); }
+    catch (e) { console.error(e); if (e.code !== "auth/popup-closed-by-user" && e.code !== "auth/cancelled-popup-request") { if ($("#aErr")) $("#aErr").textContent = authErr(e); else toast(authErr(e)); } btn.disabled = false; btn.innerHTML = txt; }
+  };
+  const vals = () => [$("#aEmail").value.trim(), $("#aPw").value];
+  const g = $("#aGoogle"); if (g) g.onclick = () => busy(g, loginGoogle);
+  const i = $("#aIn"); if (i) i.onclick = () => busy(i, () => emailAuth("signin", ...vals()));
+  const u = $("#aUp"); if (u) u.onclick = () => busy(u, () => emailAuth("signup", ...vals()));
+  const r = $("#aReset"); if (r) r.onclick = () => busy(r, async () => {
+    const em = $("#aEmail").value.trim(); if (!em) throw { code: "auth/invalid-email" };
+    const F = await fbLoad(); await F.auth.sendPasswordResetEmail(F.au, em); toast("أرسلنا رابط إعادة التعيين إلى بريدك");
+  });
+  const o = $("#aOut"); if (o) o.onclick = logout;
+}
+
+function renderRem() {
+  const pct = Math.round(((S.wird - 1) / Q.TOTAL) * 100);
+  const readToday = S.lastReadDay === today();
+  const pushReady = !!(C.firebase && C.vapidKey);
+  let h = `
+  <h2>وردي</h2>
+  <div class="card">
+    <div class="row" style="justify-content:space-between"><span>الورد التالي: <b>صفحة ${toAr(S.wird)}</b></span><span class="note">سورة ${Q.names[Q.surahOfPage(S.wird) - 1]}</span></div>
+    <div class="bar"><i style="width:${pct}%"></i></div>
+    <div class="note">${readToday ? '<span class="ok">✓ قرأت وردك اليوم، تقبّل الله منك</span>' : "لم تقرأ وردك اليوم بعد"}</div>
+    <div class="stats" style="margin-top:10px">
+      <div><b>${toAr(S.streak)}</b><small>يوم متتالٍ</small></div>
+      <div><b>${toAr(S.done)}</b><small>صفحة مقروءة</small></div>
+      <div><b>${toAr(S.khatmat)}</b><small>ختمة</small></div>
+    </div>
+  </div>
+  <h2>حسابي</h2>
+  ${accountHtml()}
+  <h2>التذكير اليومي</h2>
+  <div class="card stack">
+    <label class="lbl" for="rTime">وقت التذكير</label>
+    <input class="field" type="time" id="rTime" value="${S.time}">`;
+  if (pushReady) {
+    if (isIOS && !standalone) {
+      h += `<div class="note">على الآيفون تعمل الإشعارات بعد إضافة التطبيق للشاشة الرئيسية: اضغط زر المشاركة ثم «إضافة إلى الشاشة الرئيسية»، وافتح التطبيق من الأيقونة.</div>`;
+    } else if (S.remote) {
+      h += `<div class="note ok">🔔 التذكير مفعّل يوميًا الساعة ${fmtTime(S.time)} ويذكّرك بالصفحة التالية تلقائيًا.</div>
+            <button class="btn sec wide" id="rOff">إيقاف التذكير على هذا الجهاز</button>`;
+    } else {
+      h += `<button class="btn pri wide" id="rOn">🔔 تفعيل التذكير اليومي</button>
+            <div class="note">يصلك إشعار في الموعد برقم صفحتك التالية، ولا يُرسل إذا قرأت وردك ذلك اليوم.</div>`;
+    }
+  } else {
+    h += `<div class="note">الإشعارات لم تُفعَّل بعد في هذه النسخة. يمكنك إضافة تذكير يومي إلى تقويم جوالك:</div>`;
+  }
+  h += `<button class="btn ${pushReady ? "ghost" : "pri"} wide" id="rIcs">📅 ${pushReady ? "بديل: " : ""}أضف تذكيرًا يوميًا إلى التقويم</button>
+  </div>
+  <div class="stack">
+    <button class="btn sec wide" id="rShare">مشاركة التطبيق</button>
+    ${installEvt ? '<button class="btn sec wide" id="rInstall">تثبيت التطبيق على الجهاز</button>' : ""}
+    <button class="btn ghost wide" id="rTheme">${root.dataset.theme === "dark" ? "الوضع النهاري" : "الوضع الليلي"}</button>
+  </div>`;
+  $("#remBody").innerHTML = h;
+
+  $("#rTime").onchange = e => { S.time = e.target.value || S.time; save(); if (S.remote || S.member) { syncRemote(true); if (S.remote) toast("تم تحديث وقت التذكير"); } renderRem(); };
+  const on = $("#rOn"); if (on) on.onclick = () => enablePush(on);
+  const off = $("#rOff"); if (off) off.onclick = disablePush;
+  $("#rIcs").onclick = downloadIcs;
+  $("#rShare").onclick = shareApp;
+  const ins = $("#rInstall"); if (ins) ins.onclick = async () => { installEvt.prompt(); installEvt = null; renderRem(); };
+  $("#rTheme").onclick = () => {
+    if (root.dataset.theme === "dark") delete root.dataset.theme; else root.dataset.theme = "dark";
+    try { localStorage.setItem("wird.theme", root.dataset.theme || "light"); } catch (e) {}
+    for (const [k, v] of Object.entries(CV)) { if (root.dataset.theme === "dark") root.style.removeProperty("--" + k); else if (v) root.style.setProperty("--" + k, v); }
+    setThemeColor(); renderRem();
+  };
+  bindAccount();
+}
+$("#bRem").onclick = () => { renderRem(); show("#shRem"); };
+if (root.dataset.theme === "dark") { for (const k of Object.keys(CV)) root.style.removeProperty("--" + k); setThemeColor(); }
+
+/* مشاركة */
+async function shareApp() {
+  const url = location.origin + location.pathname;
+  if (navigator.share) { try { await navigator.share({ title: C.appName, text: C.shareText, url }); } catch (e) {} }
+  else { try { await navigator.clipboard.writeText(`${C.shareText}\n${url}`); toast("تم نسخ الرابط"); } catch (e) { toast(url); } }
+}
+
+/* تقويم (.ics) */
+function downloadIcs() {
+  const [h, m] = S.time.split(":").map(Number);
+  const d = new Date(); d.setHours(h, m, 0, 0);
+  const pad = n => String(n).padStart(2, "0");
+  const dt = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(h)}${pad(m)}00`;
+  const now = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+  const url = location.origin + location.pathname;
+  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//wird//AR", "CALSCALE:GREGORIAN", "BEGIN:VEVENT",
+    `UID:wird-${Date.now()}@wird`, `DTSTAMP:${now}`, `DTSTART:${dt}`, "DURATION:PT10M", "RRULE:FREQ=DAILY",
+    `SUMMARY:${C.notifyTitle || "صفحتك اليوم"}`, `DESCRIPTION:اقرأ صفحتك اليوم: ${url}`, `URL:${url}`,
+    "BEGIN:VALARM", "TRIGGER:PT0M", "ACTION:DISPLAY", "DESCRIPTION:صفحتك اليوم من القرآن", "END:VALARM",
+    "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
+  a.download = "daily-quran-reminder.ics"; document.body.appendChild(a); a.click(); a.remove();
+  toast("افتح الملف لإضافة التذكير إلى التقويم");
+}
+
+/* ---------- الترحيب والتشغيل ---------- */
+$("#wStart").onclick = () => { S.wird = 1; touch(); hide(); go(1); };
+$("#wPick").onclick = () => { openIndex("s"); toast("اختر الصفحة ثم اضغط «اجعل وردي من هنا»"); };
+if (C.firebase) { $("#wLogin").hidden = false; $("#wLogin").onclick = () => { renderRem(); show("#shRem"); }; }
+
+if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost")) {
+  navigator.serviceWorker.register("sw.js").catch(e => console.warn("sw", e));
+}
+
+const qp = +new URLSearchParams(location.search).get("page");
+if (qp) S.current = clamp(qp);
+go(S.current);
+if (!S.seen) { S.seen = true; save(); setTimeout(() => show("#shWelcome"), 400); }
+document.fonts && document.fonts.ready.then(fit);
+
+// مزامنة صامتة عند الفتح إذا كان المستخدم مسجلًا
+if (C.firebase && S.member) fbLoad().then(F => {
+  if (!F.au.currentUser || F.au.currentUser.isAnonymous) { S.member = false; save(); return; }
+  return pullMerge(true);
+}).catch(e => console.warn("startup sync", e));
+})();
+</script>
+</body>
+</html>
