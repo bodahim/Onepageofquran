@@ -1,6 +1,6 @@
 /* Service Worker: يعمل دون اتصال للصفحات التي فُتحت سابقًا + يستقبل إشعارات التذكير */
 importScripts("config.js");
-const VERSION = "wird-v5";
+const VERSION = "wird-v6";
 const SHELL = ["./", "index.html", "config.js", "data.js", "manifest.json", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -34,7 +34,8 @@ self.addEventListener("fetch", e => {
   }
   // ملفات التطبيق: من الشبكة أولًا ثم الذاكرة
   if (url.origin === self.location.origin) {
-    e.respondWith(fetch(req).then(res => {
+    // no-cache: يتحقق دائمًا من وجود نسخة أحدث بدل الاعتماد على ذاكرة المتصفح (حتى يصل كل تحديث فورًا)
+    e.respondWith(fetch(req, { cache: "no-cache" }).then(res => {
       if (res.ok) caches.open(VERSION).then(c => c.put(req, res.clone()));
       return res;
     }).catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || caches.match("index.html"))));
