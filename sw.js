@@ -1,10 +1,11 @@
 /* Service Worker: يعمل دون اتصال للصفحات التي فُتحت سابقًا + يستقبل إشعارات التذكير */
 importScripts("config.js");
-const VERSION = "wird-v6";
-const SHELL = ["./", "index.html", "config.js", "data.js", "manifest.json", "icons/icon-192.png", "icons/icon-512.png"];
+const VERSION = "wird-v7";
+const SHELL = ["./", "index.html", "config.js", "data.js", "manifest.json", "Icons/icon-192.png", "Icons/icon-512.png"];
 
 self.addEventListener("install", e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // كل ملف على حدة: لو تعذّر ملف واحد لا يفشل تثبيت التطبيق كله
+  e.waitUntil(caches.open(VERSION).then(c => Promise.all(SHELL.map(u => c.add(u).catch(() => {})))).then(() => self.skipWaiting()));
 });
 self.addEventListener("activate", e => {
   e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== VERSION && k !== "wird-data").map(k => caches.delete(k))))
