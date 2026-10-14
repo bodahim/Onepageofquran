@@ -1,6 +1,6 @@
 /* Service Worker: يعمل دون اتصال للصفحات التي فُتحت سابقًا + يستقبل إشعارات التذكير */
 importScripts("config.js");
-const VERSION = "wird-v4";
+const VERSION = "wird-v5";
 const SHELL = ["./", "index.html", "config.js", "data.js", "manifest.json", "icons/icon-192.png", "icons/icon-512.png"];
 
 self.addEventListener("install", e => {
