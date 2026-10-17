@@ -83,7 +83,8 @@ body.immersive #stage{padding-top:calc(6px + env(safe-area-inset-top));padding-b
 .btn.sec{background:var(--pill);border:1.5px solid var(--pillLine);color:var(--pillInk)}
 .btn.ghost{background:transparent;color:var(--muted);font-weight:400;font-size:14px}
 .btn.google{background:var(--surface);border:1.5px solid var(--pillLine);color:var(--ink);display:flex;align-items:center;justify-content:center;gap:8px}
-.btn.wide{width:100%}
+.btn.wide{width:100%;display:flex;align-items:center;justify-content:center;gap:8px}
+.btn .ico{width:20px;height:20px;flex:0 0 20px}
 .btn:disabled{opacity:.5}
 .bottom{display:flex;align-items:center;gap:10px;padding:8px max(14px,env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}
 .nav{height:40px;padding:0 14px;font-size:14px;display:flex;align-items:center}
@@ -424,7 +425,7 @@ async function render(p) {
     preload(p + 1); preload(p - 1);
   } catch (e) {
     if (tok !== renderToken) return;
-    stage.innerHTML = `<div class="state">تعذّر تحميل الصفحة ${toAr(p)}.<br>تحقق من اتصالك بالإنترنت.<br><button class="btn sec" id="retry" style="margin-top:10px">إعادة المحاولة</button></div>`;
+    stage.innerHTML = `<div class="state">تعذّر تحميل الصفحة ${toAr(p)}.<br>${navigator.onLine ? "تحقق من اتصالك بالإنترنت." : "أنت غير متصل، وهذه الصفحة غير محفوظة على جهازك.<br>حمّل المصحف كاملًا من «حسابي» ليعمل دون إنترنت."}<br><button class="btn sec" id="retry" style="margin-top:10px">إعادة المحاولة</button></div>`;
     $("#retry").onclick = () => render(p);
   }
 }
@@ -590,7 +591,7 @@ function markDone(p, silent) {
   for (const k of Object.keys(S.log)) if (k < cut) delete S.log[k];
   if (p >= Q.TOTAL) { S.khatmat++; S.wird = 1; toast("مبارك! أتممت ختمة كاملة 🎉 يبدأ وردك من جديد"); }
   else { S.wird = p + 1; if (!silent) toast(`أحسنت 🌿 وردك القادم: صفحة ${toAr(S.wird)}`); }
-  touch(); renderWirdBar(); syncRemote();
+  touch(); renderWirdBar(); syncRemote(); prefetchAhead();
 }
 function renderWirdBar() {
   const bar = $("#wirdBar"); bar.innerHTML = "";
@@ -854,21 +855,11 @@ function renderRem() {
   <div class="card stack">
     <label class="lbl" for="rTime">وقت التذكير</label>
     <input class="field" type="time" id="rTime" value="${S.time}">`;
-  if (pushReady) {
-    if (isIOS && !standalone) {
-      h += `<div class="note">على الآيفون تعمل الإشعارات بعد إضافة التطبيق للشاشة الرئيسية: اضغط زر المشاركة ثم «إضافة إلى الشاشة الرئيسية»، وافتح التطبيق من الأيقونة.</div>`;
-    } else if (S.remote) {
-      h += `<div class="note ok">🔔 التذكير مفعّل يوميًا الساعة ${fmtTime(S.time)} ويذكّرك بالصفحة التالية تلقائيًا.</div>
-            <button class="btn sec wide" id="rOff">إيقاف التذكير على هذا الجهاز</button>`;
-    } else {
-      h += `<button class="btn pri wide" id="rOn">🔔 تفعيل التذكير اليومي</button>
-            <div class="note">يصلك إشعار في الموعد برقم صفحتك التالية، ولا يُرسل إذا قرأت وردك ذلك اليوم.</div>`;
-    }
-  } else {
-    h += `<div class="note">الإشعارات لم تُفعَّل بعد في هذه النسخة. يمكنك إضافة تذكير يومي إلى تقويم جوالك:</div>`;
-  }
-  h += `<button class="btn ${pushReady ? "ghost" : "pri"} wide" id="rIcs">📅 ${pushReady ? "بديل: " : ""}أضف تذكيرًا يوميًا إلى التقويم</button>
+
+  h += remControlsHtml("btn") + `
   </div>
+  <h2 class="acc-title">العمل دون إنترنت</h2>
+  <div class="card stack" id="offCard">${offlineHtml()}</div>
   <div class="stack">
     <button class="btn sec wide" id="rShare">مشاركة التطبيق</button>
     ${installEvt ? '<button class="btn sec wide" id="rInstall">تثبيت التطبيق على الجهاز</button>' : ""}
@@ -878,9 +869,8 @@ function renderRem() {
   renderHome();
 
   $("#rTime").onchange = e => { S.time = e.target.value || S.time; save(); if (S.remote || S.member) { syncRemote(true); if (S.remote) toast("تم تحديث وقت التذكير"); } renderRem(); };
-  const on = $("#rOn"); if (on) on.onclick = () => enablePush(on);
-  const off = $("#rOff"); if (off) off.onclick = disablePush;
-  $("#rIcs").onclick = downloadIcs;
+  bindRemControls();
+  bindOffline();
   $("#rShare").onclick = shareApp;
   const ins = $("#rInstall"); if (ins) ins.onclick = async () => { installEvt.prompt(); installEvt = null; renderRem(); };
   $("#rTheme").onclick = () => {
@@ -915,19 +905,17 @@ function renderHome() {
     const k = d.toLocaleDateString("en-CA"), n = log[k] || 0;
     days.push(`<div class="day${n ? " has" : ""}${i === 0 ? " today" : ""}"><i>${toAr(n)}</i><small>${i === 0 ? "اليوم" : DAY_LETTER[d.getDay()]}</small></div>`);
   }
-  let rem;
-  if (pushReady && S.remote) {
-    rem = `<div class="rem-h"><span class="bell">${ICO.bell}</span><div class="t"><b>التذكير اليومي</b><small>مفعّل · ${fmtTime(S.time)}</small></div><span class="badge">يعمل</span></div>
-      <p class="lead">سيصلك تنبيه كل يوم الساعة <b>${fmtTime(S.time)}</b> لقراءة <b>الصفحة ${toAr(S.wird)}</b>، ويتقدّم تلقائيًا مع قراءتك.</p>
-      <div class="brow"><button class="gbtn outline" id="hOff">${ICO.bellOff}إيقاف التذكير</button><button class="gbtn outline" id="hTime">تغيير الوقت</button></div>`;
-  } else {
-    const note = !pushReady ? "أضف تذكيرًا يوميًا إلى تقويم جوالك يفتح لك وردك."
-      : (isIOS && !standalone) ? "على الآيفون أضف التطبيق للشاشة الرئيسية أولًا (زر المشاركة ثم «إضافة إلى الشاشة الرئيسية») لتعمل الإشعارات."
-      : "فعّل التذكير ليصلك إشعار برقم صفحتك التالية كل يوم.";
-    rem = `<div class="rem-h"><span class="bell">${ICO.bell}</span><div class="t"><b>التذكير اليومي</b><small>متوقف · ${fmtTime(S.time)}</small></div><span class="badge off">متوقف</span></div>
-      <p class="lead">${note}</p>
-      <div class="brow">${pushReady && !(isIOS && !standalone) ? `<button class="gbtn gold" id="hOn">${ICO.bell}تفعيل التذكير</button>` : `<button class="gbtn gold" id="hIcs">${ICO.cal}أضف إلى التقويم</button>`}<button class="gbtn outline" id="hTime">تغيير الوقت</button></div>`;
-  }
+  const st = remState();
+  const remSub = { on: "مفعّل", off: "متوقف", ios: "يحتاج خطوة على الآيفون", soon: "قريبًا" }[st];
+  const remNote = {
+    on: `سيصلك تنبيه كل يوم الساعة <b>${fmtTime(S.time)}</b> لقراءة <b>الصفحة ${toAr(S.wird)}</b>، ويتقدّم تلقائيًا مع قراءتك.`,
+    off: "فعّل التنبيهات ليصلك إشعار برقم صفحتك التالية كل يوم.",
+    ios: "على الآيفون أضف التطبيق للشاشة الرئيسية أولًا (زر المشاركة ثم «إضافة إلى الشاشة الرئيسية») وافتحه من الأيقونة لتعمل التنبيهات.",
+    soon: "التنبيهات اليومية قيد التجهيز وستتوفر قريبًا."
+  }[st];
+  const rem = `<div class="rem-h"><span class="bell">${st === "on" ? ICO.bell : ICO.bellOff}</span><div class="t"><b>التذكير اليومي</b><small>${remSub} · ${fmtTime(S.time)}</small></div><span class="badge${st === "on" ? "" : " off"}">${st === "on" ? "يعمل" : "متوقف"}</span></div>
+      <p class="lead">${remNote}</p>
+      ${remControlsHtml("gbtn")}`;
   $("#homeBody").innerHTML = `
     <section class="hcard hero2">
       <span class="chip">${ICO.spark}وِردك اليوم</span>
@@ -949,10 +937,8 @@ function renderHome() {
     <section class="hcard"><b style="font-size:17px">آخر ٧ أيام</b><div class="days">${days.join("")}</div></section>`;
   $("#hOpen").onclick = () => go(S.wird);
   $("#hStart").onclick = () => go(1);
-  const on = $("#hOn"); if (on) on.onclick = () => enablePush(on);
-  const off = $("#hOff"); if (off) off.onclick = disablePush;
-  const ics = $("#hIcs"); if (ics) ics.onclick = downloadIcs;
-  $("#hTime").onclick = () => { setView("account"); setTimeout(() => { const t = $("#rTime"); if (t) { t.scrollIntoView({ block: "center" }); t.focus(); } }, 50); };
+  bindRemControls();
+  const ht = $("#hTime"); if (ht) ht.onclick = () => { setView("account"); setTimeout(() => { const t = $("#rTime"); if (t) { t.scrollIntoView({ block: "center" }); t.focus(); } }, 50); };
 }
 
 /* ---------- التبديل بين الواجهات ---------- */
@@ -979,23 +965,108 @@ async function shareApp() {
   else { try { await navigator.clipboard.writeText(`${C.shareText}\n${url}`); toast("تم نسخ الرابط"); } catch (e) { toast(url); } }
 }
 
-/* تقويم (.ics) */
-function downloadIcs() {
-  const [h, m] = S.time.split(":").map(Number);
-  const d = new Date(); d.setHours(h, m, 0, 0);
-  const pad = n => String(n).padStart(2, "0");
-  const dt = `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(h)}${pad(m)}00`;
-  const now = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
-  const url = location.origin + location.pathname;
-  const ics = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//wird//AR", "CALSCALE:GREGORIAN", "BEGIN:VEVENT",
-    `UID:wird-${Date.now()}@wird`, `DTSTAMP:${now}`, `DTSTART:${dt}`, "DURATION:PT10M", "RRULE:FREQ=DAILY",
-    `SUMMARY:${C.notifyTitle || "صفحتك اليوم"}`, `DESCRIPTION:اقرأ صفحتك اليوم: ${url}`, `URL:${url}`,
-    "BEGIN:VALARM", "TRIGGER:PT0M", "ACTION:DISPLAY", "DESCRIPTION:صفحتك اليوم من القرآن", "END:VALARM",
-    "END:VEVENT", "END:VCALENDAR"].join("\r\n");
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(new Blob([ics], { type: "text/calendar;charset=utf-8" }));
-  a.download = "daily-quran-reminder.ics"; document.body.appendChild(a); a.click(); a.remove();
-  toast("افتح الملف لإضافة التذكير إلى التقويم");
+/* ---------- التنبيهات: تشغيل / إيقاف ---------- */
+function remState() {
+  if (!(C.firebase && C.vapidKey)) return "soon";
+  if (S.remote) return "on";
+  if (isIOS && !standalone) return "ios";
+  return "off";
+}
+// kind = "btn" (صفحة حسابي) أو "gbtn" (الرئيسية)
+function remControlsHtml(kind) {
+  const st = remState(), home = kind === "gbtn";
+  const cls = (main) => home ? `gbtn ${main ? "gold" : "outline"}` : `btn ${main ? "pri" : "sec"} wide`;
+  let b = "";
+  if (st === "on") b = `<button class="${cls(false)} remOff">${ICO.bellOff}إيقاف التنبيهات</button>`;
+  else if (st === "off") b = `<button class="${cls(true)} remOn">${ICO.bell}تشغيل التنبيهات</button>`;
+  else if (!home && st === "ios") b = `<div class="note">على الآيفون أضف التطبيق للشاشة الرئيسية أولًا ثم افتحه من الأيقونة لتعمل التنبيهات.</div>`;
+  else if (!home && st === "soon") b = `<div class="note">التنبيهات اليومية قيد التجهيز وستتوفر قريبًا.</div>`;
+  if (!home) return b;
+  return `<div class="brow">${b}<button class="gbtn outline" id="hTime">تغيير الوقت</button></div>`;
+}
+function bindRemControls() {
+  document.querySelectorAll(".remOn").forEach(x => x.onclick = () => enablePush(x));
+  document.querySelectorAll(".remOff").forEach(x => x.onclick = disablePush);
+}
+
+/* ---------- العمل دون إنترنت: تحميل المصحف كاملًا ---------- */
+const DATA_CACHE = "wird-data";
+const pageUrl = p => `${API}/verses/by_page/${p}?words=true&word_fields=code_v2,line_number&per_page=50&page=1`;
+const fontUrl = p => `${FONT}/p${p}.woff2`;
+let OFF = { busy: false, done: null, bytes: 0, stop: false };
+async function offlineCount() {
+  if (!("caches" in window)) return 0;
+  try {
+    const keys = (await (await caches.open(DATA_CACHE)).keys()).map(r => r.url);
+    const pages = new Set(), fonts = new Set();
+    for (const u of keys) {
+      let m = u.match(/verses\/by_page\/(\d+)\?/); if (m) pages.add(+m[1]);
+      m = u.match(/woff2\/p(\d+)\.woff2/); if (m) fonts.add(+m[1]);
+    }
+    let n = 0; for (const p of pages) if (fonts.has(p)) n++;
+    return n;
+  } catch (e) { return 0; }
+}
+async function cachePage(c, p) {
+  let got = 0;
+  for (const u of [pageUrl(p), fontUrl(p)]) {
+    if (await c.match(u, { ignoreVary: true })) continue;
+    const r = await fetch(u, { mode: "cors" });
+    if (!r.ok) throw new Error("http " + r.status);
+    const b = await r.clone().blob(); got += b.size;
+    await c.put(u, r);
+  }
+  return got;
+}
+function offlineHtml() {
+  const d = OFF.done;
+  if (OFF.busy) {
+    const pct = Math.round((d || 0) / Q.TOTAL * 100);
+    return `<div class="row" style="justify-content:space-between"><b>جارٍ تحميل المصحف…</b><span class="note">${toAr(d || 0)} / ${toAr(Q.TOTAL)}</span></div>
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div class="note">تم تنزيل ${toAr((OFF.bytes / 1048576).toFixed(1))} ميغابايت. يمكنك الاستمرار في استخدام التطبيق، وأبقِه مفتوحًا حتى يكتمل.</div>
+      <button class="btn ghost wide" id="offStop">إيقاف التحميل</button>`;
+  }
+  if (d === Q.TOTAL) return `<div class="ok">✓ المصحف كاملًا محفوظ على جهازك</div><div class="note">جميع الصفحات الـ ${toAr(Q.TOTAL)} تعمل الآن بدون إنترنت.</div>`;
+  return `<div class="note">${d ? `المحفوظ على جهازك: ${toAr(d)} من ${toAr(Q.TOTAL)} صفحة. ` : ""}حمّل المصحف كاملًا مرة واحدة ليعمل التطبيق بدون إنترنت في أي وقت. يُفضّل التحميل على شبكة Wi-Fi.</div>
+    <button class="btn pri wide" id="offGo">⬇ تحميل المصحف للعمل دون إنترنت</button>`;
+}
+function bindOffline() {
+  const go = $("#offGo"); if (go) go.onclick = downloadAll;
+  const st = $("#offStop"); if (st) st.onclick = () => { OFF.stop = true; };
+  if (OFF.done === null && !OFF.busy) offlineCount().then(n => { OFF.done = n; const c = $("#offCard"); if (c) { c.innerHTML = offlineHtml(); bindOffline(); } });
+}
+function refreshOffCard() { const c = $("#offCard"); if (c) { c.innerHTML = offlineHtml(); bindOffline(); } }
+async function downloadAll() {
+  if (OFF.busy) return;
+  if (!("caches" in window)) { toast("متصفحك لا يدعم الحفظ دون إنترنت"); return; }
+  if (!navigator.onLine) { toast("اتصل بالإنترنت أولًا لتحميل المصحف"); return; }
+  try { if (navigator.storage && navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
+  OFF.busy = true; OFF.stop = false; OFF.bytes = 0; refreshOffCard();
+  const c = await caches.open(DATA_CACHE);
+  const todo = []; for (let p = 1; p <= Q.TOTAL; p++) todo.push(p);
+  let done = 0, failed = 0, last = 0;
+  const worker = async () => {
+    while (todo.length && !OFF.stop) {
+      const p = todo.shift();
+      try { OFF.bytes += await cachePage(c, p); done++; }
+      catch (e) { failed++; if (!navigator.onLine) { OFF.stop = true; } }
+      OFF.done = done;
+      if (Date.now() - last > 400) { last = Date.now(); refreshOffCard(); }
+    }
+  };
+  await Promise.all([worker(), worker(), worker(), worker(), worker(), worker()]);
+  OFF.busy = false; OFF.done = await offlineCount(); refreshOffCard();
+  if (OFF.done === Q.TOTAL) toast("✓ اكتمل التحميل، المصحف يعمل الآن بدون إنترنت");
+  else if (OFF.stop && !navigator.onLine) toast("انقطع الإنترنت، اضغط التحميل مرة أخرى لإكمال الباقي");
+  else if (failed) toast(`تعذّر تحميل ${toAr(Q.TOTAL - OFF.done)} صفحة، اضغط التحميل مرة أخرى لإكمالها`);
+}
+// تحميل صامت لصفحات الورد القادمة حتى تكون جاهزة دون إنترنت
+function prefetchAhead() {
+  if (!("caches" in window) || !navigator.onLine) return;
+  caches.open(DATA_CACHE).then(async c => {
+    for (let p = S.wird; p < Math.min(Q.TOTAL, S.wird + 10) + 1; p++) { try { await cachePage(c, p); } catch (e) { return; } }
+  }).catch(() => {});
 }
 
 /* ---------- الترحيب والتشغيل ---------- */
@@ -1009,6 +1080,7 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
 
 const qp = +new URLSearchParams(location.search).get("page");
 if (qp) { S.current = clamp(qp); go(S.current); } else setView("home");
+setTimeout(prefetchAhead, 3000);
 if (!S.seen) { S.seen = true; save(); setTimeout(() => show("#shWelcome"), 400); }
 document.fonts && document.fonts.ready.then(fit);
 

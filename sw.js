@@ -1,6 +1,6 @@
 /* Service Worker: يعمل دون اتصال للصفحات التي فُتحت سابقًا + يستقبل إشعارات التذكير */
 importScripts("config.js");
-const VERSION = "wird-v7";
+const VERSION = "wird-v8";
 const SHELL = ["./", "index.html", "config.js", "data.js", "manifest.json", "Icons/icon-192.png", "Icons/icon-512.png"];
 
 self.addEventListener("install", e => {
@@ -16,20 +16,13 @@ self.addEventListener("fetch", e => {
   const req = e.request;
   if (req.method !== "GET") return;
   const url = new URL(req.url);
-  // خطوط المصحف والخطوط العامة: من الذاكرة أولًا (لا تتغير)
-  if (url.hostname === "static.qurancdn.com" || url.hostname === "fonts.gstatic.com" || url.hostname === "fonts.googleapis.com") {
+  // خطوط المصحف وبيانات الصفحات والخطوط العامة: لا تتغير أبدًا، فتُقرأ من الجهاز أولًا (تعمل دون إنترنت)
+  if (["static.qurancdn.com", "api.quran.com", "fonts.gstatic.com", "fonts.googleapis.com"].includes(url.hostname)) {
     e.respondWith(caches.open("wird-data").then(async c => {
-      const hit = await c.match(req); if (hit) return hit;
-      const res = await fetch(req); if (res.ok || res.type === "opaque") c.put(req, res.clone()); return res;
-    }));
-    return;
-  }
-  // بيانات الصفحات: من الذاكرة ثم تحديث في الخلفية
-  if (url.hostname === "api.quran.com") {
-    e.respondWith(caches.open("wird-data").then(async c => {
-      const hit = await c.match(req);
-      const net = fetch(req).then(res => { if (res.ok) c.put(req, res.clone()); return res; }).catch(() => hit);
-      return hit || net;
+      const hit = await c.match(req.url, { ignoreVary: true }); if (hit) return hit;
+      const res = await fetch(req);
+      if (res.ok || res.type === "opaque") c.put(req.url, res.clone());
+      return res;
     }));
     return;
   }
