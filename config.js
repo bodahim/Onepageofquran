@@ -23,7 +23,14 @@ self.APP_CONFIG = {
   notifyBody: "حان وقت وردك: الصفحة {page} — سورة {surah}",
 
   // ===== إعدادات Firebase للحسابات والتذكير (اتركها null حتى تُكمل خطوات الدليل) =====
-  firebase: null,
+  firebase: {
+    apiKey: "AIzaSyCjQOAau2QuSuZpxFvMLYydDd2R4lSqExw",
+    authDomain: "quran1p.firebaseapp.com",
+    projectId: "quran1p",
+    storageBucket: "quran1p.firebasestorage.app",
+    messagingSenderId: "322494537287",
+    appId: "1:322494537287:web:e3cbd32c8b997d208edb62"
+  },
   /* مثال بعد الإعداد:
   firebase: {
     apiKey: "AIza...",
@@ -33,5 +40,5 @@ self.APP_CONFIG = {
     appId: "1:1234567890:web:abc123"
   },
   */
-  vapidKey: ""   // من Firebase: Project settings › Cloud Messaging › Web Push certificates
+  vapidKey: "BPAq0KL41aCllhv0vL799P64wK8pp8Xn_7utKI20n9RRINSPbLNytgNbTbtnb5PIn48hBIDlCsBvRX8d81_Z9Pc"   // من Firebase: Project settings › Cloud Messaging › Web Push certificates
 };
