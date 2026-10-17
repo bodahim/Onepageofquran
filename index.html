@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#fff9e6">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="Icons/icon-192.png">
-<link rel="apple-touch-icon" href="Icons/icon-192.png">
+<link rel="apple-touch-icon" href="Icons/apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="صفحة كل يوم">
@@ -678,8 +678,11 @@ async function syncRemote(timeChanged) {
     const data = progressPayload(F);
     if (timeChanged) Object.assign(data, { time: S.time, tz: tz(), nextDue: F.fs.Timestamp.fromDate(nextDue()) });
     await F.fs.setDoc(uref(F), data, { merge: true });
-  } catch (e) { console.error("sync", e); }
+    if (S.pendingSync) { S.pendingSync = false; save(); }
+  } catch (e) { console.error("sync", e); S.pendingSync = true; save(); }
 }
+// إذا قرأ المستخدم وهو دون إنترنت: يُرسل تقدّمه للخادم فور عودة الاتصال (حتى يأتي التنبيه التالي بالصفحة الصحيحة)
+addEventListener("online", () => { if (S.pendingSync) syncRemote(); });
 
 /* دمج السجل: يُعتمد السجل الأكثر تقدمًا (لا يضيع تقدمك أبدًا) */
 async function pullMerge(silent) {
@@ -1084,6 +1087,7 @@ setTimeout(prefetchAhead, 3000);
 if (!S.seen) { S.seen = true; save(); setTimeout(() => show("#shWelcome"), 400); }
 document.fonts && document.fonts.ready.then(fit);
 
+if (S.pendingSync && navigator.onLine) setTimeout(() => syncRemote(), 1500);
 // مزامنة صامتة عند الفتح إذا كان المستخدم مسجلًا
 if (C.firebase && S.member) fbLoad().then(F => {
   if (!F.au.currentUser || F.au.currentUser.isAnonymous) { S.member = false; save(); return; }

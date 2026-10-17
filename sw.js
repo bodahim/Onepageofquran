@@ -1,7 +1,7 @@
 /* Service Worker: يعمل دون اتصال للصفحات التي فُتحت سابقًا + يستقبل إشعارات التذكير */
 importScripts("config.js");
-const VERSION = "wird-v9";
-const SHELL = ["./", "index.html", "config.js", "data.js", "manifest.json", "Icons/icon-192.png", "Icons/icon-512.png"];
+const VERSION = "wird-v11";
+const SHELL = ["./", "index.html", "config.js", "data.js", "manifest.json", "Icons/icon-192.png", "Icons/icon-512.png", "Icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
   // كل ملف على حدة: لو تعذّر ملف واحد لا يفشل تثبيت التطبيق كله
