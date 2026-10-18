@@ -43,6 +43,27 @@ function nextOccurrence(time, tz, after) {
 const validTz = tz => { try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return tz; } catch { return "Asia/Riyadh"; } };
 
 const now = new Date();
+
+// وضع الإحصاءات (Run workflow مع خانة stats): يعرض أعداد المستخدمين فقط ولا يرسل أي تنبيه
+if (process.env.STATS_MODE === "1") {
+  const U = db.collection("users"), ago = d => admin.firestore.Timestamp.fromDate(new Date(now - d * 86400000));
+  const n = async q => (await q.count().get()).data().count;
+  const rows = [
+    ["كل الحسابات (سجّل دخولًا أو فعّل التنبيه)", await n(U)],
+    ["التنبيه مفعّل", await n(U.where("enabled", "==", true))],
+    ["ثبّتوا التطبيق على الشاشة الرئيسية", await n(U.where("installed", "==", true))],
+    ["فتحوا التطبيق آخر 24 ساعة", await n(U.where("lastOpen", ">=", ago(1)))],
+    ["فتحوا التطبيق آخر 7 أيام", await n(U.where("lastOpen", ">=", ago(7)))],
+    ["فتحوا التطبيق آخر 30 يومًا", await n(U.where("lastOpen", ">=", ago(30)))]
+  ];
+  rows.forEach(([k, v]) => console.log(`${k}: ${v}`));
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    const { appendFileSync } = await import("node:fs");
+    appendFileSync(process.env.GITHUB_STEP_SUMMARY, "## إحصاءات التطبيق\n\n| المؤشر | العدد |\n|---|---|\n" + rows.map(([k, v]) => `| ${k} | ${v} |`).join("\n") +
+      "\n\n> الأرقام تشمل أصحاب الحسابات فقط. «المثبّتون» و«آخر فتح» يُسجَّلان من تاريخ إضافة هذه الميزة.\n");
+  }
+  process.exit(0);
+}
 // وضع التجربة (عند الضغط على Run workflow يدويًا): يرسل الآن لكل من فعّل التنبيهات بغض النظر عن الوقت
 const TEST = process.env.TEST_MODE === "1";
 const snap = TEST
