@@ -1,6 +1,6 @@
 /* Service Worker: يعمل دون اتصال للصفحات التي فُتحت سابقًا + يستقبل إشعارات التذكير */
 importScripts("config.js");
-const VERSION = "wird-v11";
+const VERSION = "wird-v12";
 const SHELL = ["./", "index.html", "config.js", "data.js", "manifest.json", "Icons/icon-192.png", "Icons/icon-512.png", "Icons/apple-touch-icon.png"];
 
 self.addEventListener("install", e => {
@@ -36,23 +36,34 @@ self.addEventListener("fetch", e => {
   }
 });
 
+/* ===== الضغط على الإشعار: يفتح التطبيق دائمًا على الصفحة المطلوبة =====
+   يُسجَّل قبل مكتبة Firebase حتى يعمل هو أولًا؛ لأن معالج Firebase يتجاهل الضغط بصمت
+   إذا اختلف عنوان الموقع (مثل www أو رابط workers.dev) أو فشل فتح النافذة */
+self.addEventListener("notificationclick", e => {
+  const d = (e.notification && e.notification.data) || {};
+  const m = d.FCM_MSG || {};
+  const raw = (m.fcmOptions && m.fcmOptions.link) || (m.data && m.data.link) || d.link || "";
+  e.stopImmediatePropagation();
+  e.notification.close();
+  // نأخذ رقم الصفحة فقط ونفتحه على نفس عنوان التطبيق المثبّت على هذا الجهاز
+  let q = ""; try { q = new URL(raw, self.registration.scope).search; } catch (_) {}
+  const url = self.registration.scope + q;
+  e.waitUntil((async () => {
+    const list = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+    for (const w of list) {
+      if (!w.url.startsWith(self.registration.scope)) continue;
+      try { const c = await w.navigate(url); if (c) { await c.focus().catch(() => {}); return; } } catch (_) {}
+    }
+    try { const c = await self.clients.openWindow(url); if (c) return; } catch (_) {}
+    if (list[0]) await list[0].focus().catch(() => {}); // آخر حل: أظهر التطبيق المفتوح
+  })());
+});
+
 /* ===== الإشعارات (Firebase Cloud Messaging) ===== */
 const C = self.APP_CONFIG || {};
 if (C.firebase) {
   importScripts("https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js",
                 "https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js");
   firebase.initializeApp(C.firebase);
-  firebase.messaging(); // يعرض الإشعار تلقائيًا ويفتح الرابط عند الضغط
+  firebase.messaging(); // يعرض الإشعار تلقائيًا
 }
-
-// عند الضغط على الإشعار: افتح التطبيق على الصفحة المطلوبة
-self.addEventListener("notificationclick", e => {
-  const data = (e.notification && e.notification.data) || {};
-  const link = (data.FCM_MSG && data.FCM_MSG.data && data.FCM_MSG.data.link) || data.link;
-  if (!link) return; // تتولاه مكتبة Firebase
-  e.notification.close();
-  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
-    for (const w of list) if ("navigate" in w) return w.navigate(link).then(c => c && c.focus());
-    return self.clients.openWindow(link);
-  }));
-});
