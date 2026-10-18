@@ -9,6 +9,10 @@ on:
         description: "Send a test notification to everyone now"
         type: boolean
         default: false
+      stats:
+        description: "Show user statistics only (no notifications)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -34,6 +38,7 @@ jobs:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           APP_URL: ${{ vars.APP_URL }}
           TEST_MODE: ${{ inputs.test && '1' || '' }}
+          STATS_MODE: ${{ inputs.stats && '1' || '' }}
       - name: Keep schedule alive
         run: |
           last=$(git log -1 --format=%ct)
