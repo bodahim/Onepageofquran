@@ -692,10 +692,11 @@ async function pullMerge(silent) {
   const rp = r && r.progress;
   const score = o => (o.khatmat || 0) * 10000 + (o.done || 0) * 10 + ((o.wird || 1) > 1 ? 1 : 0);
   if (rp && (score(rp) > score(S) || (score(rp) === score(S) && (rp.updatedAt || 0) > (S.updatedAt || 0)))) {
+    const onBoot = VIEW === "mushaf" && BOOT_PAGE && S.current === BOOT_PAGE; // ما زال على صفحة الفتح التلقائي
     Object.assign(S, { wird: rp.wird || 1, done: rp.done || 0, khatmat: rp.khatmat || 0, streak: rp.streak || 0,
       lastReadDay: rp.lastReadDay || "", current: rp.current || rp.wird || 1, log: rp.log || S.log || {}, updatedAt: rp.updatedAt || Date.now() });
     if (r.time) S.time = r.time;
-    save(); if (VIEW === "mushaf") render(S.current); else renderHome();
+    save(); if (onBoot) { BOOT_PAGE = S.wird; go(S.wird); } else if (VIEW === "mushaf") render(S.current); else renderHome();
     toast(`تم استرجاع سجلك: وردك عند صفحة ${toAr(S.wird)}`);
   } else {
     if (!S.updatedAt) S.updatedAt = Date.now();
@@ -1081,8 +1082,12 @@ if ("serviceWorker" in navigator && (location.protocol === "https:" || location.
   navigator.serviceWorker.register("sw.js").catch(e => console.warn("sw", e));
 }
 
+var BOOT_PAGE = 0;
 const qp = +new URLSearchParams(location.search).get("page");
-if (qp) { S.current = clamp(qp); go(S.current); } else setView("home");
+// الفتح المباشر على الصفحة التالية للورد (المستخدم الجديد يرى الرئيسية والترحيب أول مرة فقط)
+if (qp) { S.current = clamp(qp); go(S.current); }
+else if (S.seen) { BOOT_PAGE = S.wird; S.current = S.wird; go(S.wird); }
+else setView("home");
 setTimeout(prefetchAhead, 3000);
 if (!S.seen) { S.seen = true; save(); setTimeout(() => show("#shWelcome"), 400); }
 document.fonts && document.fonts.ready.then(fit);
