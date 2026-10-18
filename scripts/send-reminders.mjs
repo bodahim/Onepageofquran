@@ -43,7 +43,12 @@ function nextOccurrence(time, tz, after) {
 const validTz = tz => { try { new Intl.DateTimeFormat("en-US", { timeZone: tz }); return tz; } catch { return "Asia/Riyadh"; } };
 
 const now = new Date();
-const snap = await db.collection("users").where("nextDue", "<=", admin.firestore.Timestamp.fromDate(now)).limit(5000).get();
+// وضع التجربة (عند الضغط على Run workflow يدويًا): يرسل الآن لكل من فعّل التنبيهات بغض النظر عن الوقت
+const TEST = process.env.TEST_MODE === "1";
+const snap = TEST
+  ? await db.collection("users").where("enabled", "==", true).limit(5000).get()
+  : await db.collection("users").where("nextDue", "<=", admin.firestore.Timestamp.fromDate(now)).limit(5000).get();
+if (TEST) console.log("وضع التجربة: إرسال فوري لكل المشتركين");
 console.log(`مستحقون الآن: ${snap.size}`);
 
 const msgs = [], meta = [], updates = new Map();
@@ -52,8 +57,9 @@ for (const doc of snap.docs) {
   const s = doc.data(), tz = validTz(s.tz);
   const tokens = Object.entries(s.tokens || {}).filter(([, t]) => t);
   if (!s.enabled || !tokens.length) { updates.set(doc.id, { ref: doc.ref, data: { nextDue: FAR } }); continue; }
-  updates.set(doc.id, { ref: doc.ref, data: { nextDue: admin.firestore.Timestamp.fromDate(nextOccurrence(s.time, tz, now)) } });
-  if (s.lastReadDay === localDay(now, tz)) continue; // قرأ وردَه اليوم — لا داعي للتذكير
+  console.log(`مستخدم: الوقت ${s.time} (${tz}) | أجهزة: ${tokens.length} | آخر قراءة: ${s.lastReadDay || "-"} | الصفحة التالية: ${s.nextPage}`);
+  if (!TEST) updates.set(doc.id, { ref: doc.ref, data: { nextDue: admin.firestore.Timestamp.fromDate(nextOccurrence(s.time, tz, now)) } });
+  // التنبيه يُرسل دائمًا في وقته، برقم الصفحة التالية بعد آخر صفحة قرأها المستخدم
   const page = Math.min(Q.TOTAL, Math.max(1, s.nextPage || 1));
   const surah = Q.names[Q.surahOfPage(page) - 1];
   const fill = t => String(t).replace("{page}", page).replace("{surah}", surah);
@@ -74,12 +80,12 @@ for (let i = 0; i < msgs.length; i += 500) {
   res.responses.forEach((r, k) => {
     if (r.success) { sent++; return; }
     const code = r.error && r.error.code;
-    if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token" || code === "messaging/invalid-argument") {
+    if (code === "messaging/registration-token-not-registered" || code === "messaging/invalid-registration-token") {
       dead++;
       const { doc, dev } = meta[i + k];
-      const u = updates.get(doc.id);
+      const u = updates.get(doc.id) || (updates.set(doc.id, { ref: doc.ref, data: {} }), updates.get(doc.id));
       u.data[`tokens.${dev}`] = FV.delete(); // يُزال الجهاز المنتهي فقط
-    } else console.warn("فشل:", code);
+    } else console.warn("فشل الإرسال:", code, "-", r.error && r.error.message);
   });
 }
 
