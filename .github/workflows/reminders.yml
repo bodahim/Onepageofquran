@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
+    inputs:
+      test:
+        description: "Send a test notification to everyone now"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -28,7 +33,7 @@ jobs:
         env:
           FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
           APP_URL: ${{ vars.APP_URL }}
-          TEST_MODE: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          TEST_MODE: ${{ inputs.test && '1' || '' }}
       - name: Keep schedule alive
         run: |
           last=$(git log -1 --format=%ct)
