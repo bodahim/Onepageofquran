@@ -963,7 +963,7 @@ if (root.dataset.theme === "dark") { for (const k of Object.keys(CV)) root.style
 
 /* مشاركة */
 async function shareApp() {
-  const url = location.origin + location.pathname;
+  const url = C.siteUrl || (location.origin + location.pathname); // الرابط الرسمي دائمًا، أيًا كان العنوان المفتوح منه
   if (navigator.share) { try { await navigator.share({ title: C.appName, text: C.shareText, url }); } catch (e) {} }
   else { try { await navigator.clipboard.writeText(`${C.shareText}\n${url}`); toast("تم نسخ الرابط"); } catch (e) { toast(url); } }
 }
