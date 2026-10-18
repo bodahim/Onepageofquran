@@ -1093,6 +1093,19 @@ if (!S.seen) { S.seen = true; save(); setTimeout(() => show("#shWelcome"), 400);
 document.fonts && document.fonts.ready.then(fit);
 
 if (S.pendingSync && navigator.onLine) setTimeout(() => syncRemote(), 1500);
+// إحصاء بسيط (لأصحاب الحسابات فقط): هل التطبيق مثبّت على الشاشة الرئيسية + آخر يوم فُتح فيه — مرة واحدة يوميًا لكل جهاز
+async function pingOpen() {
+  if (!C.firebase || !(S.remote || S.member) || !navigator.onLine) return;
+  const day = today(), mark = day + (standalone ? "i" : "");
+  try { if (localStorage.getItem("wird.ping") === mark) return; } catch (e) {}
+  const F = await fbLoad(); if (!F.au.currentUser) return;
+  const data = { lastOpen: F.fs.serverTimestamp(), lastOpenDay: day,
+    devices: { [DEV]: { installed: standalone, lastOpenDay: day, mobile: /Android|iPhone|iPad|Mobi/i.test(navigator.userAgent) } } };
+  if (standalone) data.installed = true;
+  await F.fs.setDoc(uref(F), data, { merge: true });
+  try { localStorage.setItem("wird.ping", mark); } catch (e) {}
+}
+setTimeout(() => pingOpen().catch(e => console.warn("ping", e)), 4000);
 // مزامنة صامتة عند الفتح إذا كان المستخدم مسجلًا
 if (C.firebase && S.member) fbLoad().then(F => {
   if (!F.au.currentUser || F.au.currentUser.isAnonymous) { S.member = false; save(); return; }
